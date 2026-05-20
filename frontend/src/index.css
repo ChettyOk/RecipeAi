@@ -1,0 +1,96 @@
+:root {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-page: #070b14;
+  --bg-card: #101827;
+  --bg-elevated: #172033;
+  --border: #2a3a5c;
+  --text: #e8edf7;
+  --text-muted: #8b9bb8;
+  --link: #a5b4fc;
+  --accent: #7c3aed;
+  --accent-hover: #8b5cf6;
+  --accent-muted: #4c1d95;
+  --btn-secondary-bg: #1e293b;
+  --btn-secondary-text: #e2e8f0;
+  --success-bg: #064e3b;
+  --success-text: #a7f3d0;
+  --danger-bg: #7f1d1d;
+  --danger-text: #fecaca;
+  --danger-soft-bg: #3f1518;
+  --danger-soft-text: #fca5a5;
+  --info-bg: #0c4a6e;
+  --info-text: #bae6fd;
+  --view-bg: #064e3b;
+  --view-text: #a7f3d0;
+  --edit-bg: #0c4a6e;
+  --edit-text: #bae6fd;
+  --shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  --modal-scrim: rgb(0 0 0 / 0.65);
+  --modal-shadow: 0 25px 50px rgb(0 0 0 / 0.45);
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --bg-page: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-elevated: #f8fafc;
+  --border: #cbd5e1;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --link: #4f46e5;
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --accent-muted: #ede9fe;
+  --btn-secondary-bg: #e2e8f0;
+  --btn-secondary-text: #0f172a;
+  --success-bg: #ecfdf5;
+  --success-text: #065f46;
+  --danger-bg: #fee2e2;
+  --danger-text: #b91c1c;
+  --danger-soft-bg: #fee2e2;
+  --danger-soft-text: #b91c1c;
+  --info-bg: #e0f2fe;
+  --info-text: #0369a1;
+  --view-bg: #ecfdf5;
+  --view-text: #047857;
+  --edit-bg: #e0f2fe;
+  --edit-text: #0369a1;
+  --shadow: 0 1px 3px rgb(15 23 42 / 0.08);
+  --modal-scrim: rgb(15 23 42 / 0.45);
+  --modal-shadow: 0 25px 50px rgb(15 23 42 / 0.2);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg-page);
+  color: var(--text);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+input,
+textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.85;
+}
