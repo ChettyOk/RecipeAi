@@ -1,8 +1,65 @@
+export const DIETARY_FLAGS = [
+  "vegetarian",
+  "vegan",
+  "gluten-free",
+  "dairy-free",
+  "high-protein",
+  "low-carb",
+  "keto",
+  "nut-free",
+];
+
+export const ALLERGENS = [
+  "dairy",
+  "gluten",
+  "nuts",
+  "peanuts",
+  "egg",
+  "soy",
+  "shellfish",
+  "fish",
+  "sesame",
+];
+
+export const ACTIVITY_LEVELS = ["sedentary", "light", "moderate", "active", "very_active"];
+export const GOALS = ["lose", "maintain", "gain"];
+export const SEXES = ["male", "female", "other"];
+
+export type Nutrition = {
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  fiber_g: number | null;
+};
+
+export type NutritionReport = {
+  per_serving: Nutrition;
+  total: Nutrition;
+  servings: number | null;
+  serving_label: string | null;
+  estimated_yield_g: number | null;
+  per_serving_weight_g: number | null;
+  matched: number;
+  unmatched: string[];
+  notes: string[];
+  source: string | null;
+};
+
 export type Recipe = {
   id: number;
   title: string;
   ingredients: string[];
   steps: string[];
+  prep_time_min: number | null;
+  cook_time_min: number | null;
+  servings: number | null;
+  dietary_flags: string[];
+  source_url: string | null;
+  source_platform: string | null;
+  source_context_text: string | null;
+  thumbnail_url: string | null;
+  nutrition: NutritionReport | null;
   created_at: string;
   updated_at: string;
 };
@@ -11,12 +68,78 @@ export type ExtractFromVideoResult = {
   title: string;
   ingredients: string[];
   steps: string[];
+  prep_time_min: number | null;
+  cook_time_min: number | null;
+  servings: number | null;
+  dietary_flags: string[];
   source_url: string;
+  source_platform: string | null;
   source_video_title: string | null;
   had_transcript: boolean;
   had_description: boolean;
+  had_audio_transcription: boolean;
+  had_frame_vision: boolean;
   used_ai: boolean;
+  nutrition: NutritionReport | null;
+  pipeline_steps: string[];
   extraction_note: string | null;
+  source_context_text: string | null;
+  thumbnail_url: string | null;
+};
+
+export type RecipeInput = {
+  title: string;
+  ingredients: string[];
+  steps: string[];
+  prep_time_min?: number | null;
+  cook_time_min?: number | null;
+  servings?: number | null;
+  dietary_flags?: string[];
+  source_url?: string | null;
+  source_platform?: string | null;
+  source_context_text?: string | null;
+  thumbnail_url?: string | null;
+  nutrition?: NutritionReport | null;
+};
+
+export type Profile = {
+  height_cm: number | null;
+  weight_kg: number | null;
+  age: number | null;
+  sex: string | null;
+  activity_level: string | null;
+  goal: string | null;
+  allergies: string[];
+  dietary_prefs: string[];
+};
+
+export type DailyTargets = {
+  bmr: number | null;
+  tdee: number | null;
+  target_calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  basis: string | null;
+};
+
+export type ProfileRead = Profile & { targets: DailyTargets | null };
+
+export type Substitution = {
+  ingredient: string;
+  suggestion: string;
+  reason: string;
+};
+
+export type RecipeInsights = {
+  has_profile: boolean;
+  per_serving: Nutrition;
+  calories_pct_of_target: number | null;
+  protein_pct_of_target: number | null;
+  fit_notes: string[];
+  allergy_warnings: string[];
+  dietary_conflicts: string[];
+  substitutions: Substitution[];
 };
 
 const base = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
@@ -61,23 +184,41 @@ export async function fetchRecipe(id: number): Promise<Recipe> {
 
 export async function extractRecipeFromVideo(
   url: string,
-  options?: { useAi?: boolean },
+  options?: { useAi?: boolean; useMedia?: boolean | null; computeNutrition?: boolean | null },
 ): Promise<ExtractFromVideoResult> {
-  const useAi = options?.useAi ?? true;
   const res = await fetch(`${base}/recipes/extract-from-video`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, use_ai: useAi }),
+    body: JSON.stringify({
+      url,
+      use_ai: options?.useAi ?? true,
+      use_media: options?.useMedia ?? null,
+      compute_nutrition: options?.computeNutrition ?? null,
+    }),
   });
   await parse(res);
   return res.json();
 }
 
-export async function createRecipe(data: {
-  title: string;
-  ingredients: string[];
-  steps: string[];
-}): Promise<Recipe> {
+export async function computeNutrition(
+  ingredients: string[],
+  servings: number | null,
+  contextText?: string | null,
+): Promise<NutritionReport> {
+  const res = await fetch(`${base}/nutrition`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ingredients,
+      servings,
+      context_text: contextText ?? null,
+    }),
+  });
+  await parse(res);
+  return res.json();
+}
+
+export async function createRecipe(data: RecipeInput): Promise<Recipe> {
   const res = await fetch(`${base}/recipes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -89,7 +230,7 @@ export async function createRecipe(data: {
 
 export async function updateRecipe(
   id: number,
-  data: Partial<{ title: string; ingredients: string[]; steps: string[] }>,
+  data: Partial<RecipeInput>,
 ): Promise<Recipe> {
   const res = await fetch(`${base}/recipes/${id}`, {
     method: "PATCH",
@@ -103,4 +244,34 @@ export async function updateRecipe(
 export async function deleteRecipe(id: number): Promise<void> {
   const res = await fetch(`${base}/recipes/${id}`, { method: "DELETE" });
   await parse(res);
+}
+
+export async function getProfile(): Promise<ProfileRead> {
+  const res = await fetch(`${base}/profile`);
+  await parse(res);
+  return res.json();
+}
+
+export async function saveProfile(data: Profile): Promise<ProfileRead> {
+  const res = await fetch(`${base}/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  await parse(res);
+  return res.json();
+}
+
+export async function getInsights(
+  ingredients: string[],
+  servings: number | null,
+  nutrition: NutritionReport | null,
+): Promise<RecipeInsights> {
+  const res = await fetch(`${base}/insights`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ingredients, servings, nutrition }),
+  });
+  await parse(res);
+  return res.json();
 }

@@ -1,0 +1,188 @@
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import * as api from "../api";
+import { Link } from "react-router-dom";
+import {
+  detectPlatform,
+  extractVideoUrlFromText,
+  isSupportedVideoUrl,
+  isYoutubeBotError,
+  normalizeVideoUrl,
+  platformDisplayName,
+} from "../lib/videoUrl";
+
+const STAGES = [
+  "Fetching video info",
+  "Reading ingredients",
+  "Calculating macros",
+] as const;
+
+const PLATFORMS = [
+  { id: "tiktok", label: "TikTok" },
+  { id: "youtube", label: "YouTube" },
+  { id: "instagram", label: "Instagram" },
+] as const;
+
+export function ImportPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [videoUrl, setVideoUrl] = useState("");
+  const [useAi, setUseAi] = useState(true);
+  const [extracting, setExtracting] = useState(false);
+  const [stageIdx, setStageIdx] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const autoRanRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const detected = videoUrl.trim() ? detectPlatform(videoUrl) : null;
+
+  useEffect(() => {
+    if (!extracting) return;
+    timerRef.current = setInterval(() => {
+      setStageIdx((i) => Math.min(i + 1, STAGES.length - 1));
+    }, 4000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [extracting]);
+
+  async function runExtract(rawUrl: string) {
+    const extracted = normalizeVideoUrl(extractVideoUrlFromText(rawUrl) ?? rawUrl.trim());
+    if (!extracted) return;
+    if (!isSupportedVideoUrl(extracted)) {
+      setError("Paste a TikTok, YouTube, or Instagram video link.");
+      return;
+    }
+    setVideoUrl(extracted);
+    setError(null);
+    setExtracting(true);
+    setStageIdx(0);
+    try {
+      const draft = await api.extractRecipeFromVideo(extracted, { useAi, useMedia: false });
+      navigate("/new", { state: { draft, reveal: true, sourceUrl: extracted } });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Extract failed");
+    } finally {
+      setExtracting(false);
+      setStageIdx(0);
+    }
+  }
+
+  useEffect(() => {
+    if (autoRanRef.current) return;
+    const shared = searchParams.get("url") || searchParams.get("text") || "";
+    const url = extractVideoUrlFromText(shared);
+    if (!url) return;
+    autoRanRef.current = true;
+    setVideoUrl(url);
+    if (searchParams.get("autorun") !== "0") void runExtract(url);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  if (extracting) {
+    return (
+      <div className="extract-screen app-shell--full" style={{ maxWidth: 480, margin: "0 auto" }}>
+        <div className="extract-pulse" aria-hidden />
+        <h1 className="page-title" style={{ fontSize: "1.5rem" }}>Extracting recipe</h1>
+        <p className="page-sub" style={{ margin: "0.5rem 0 0" }}>
+          {detected === "youtube"
+            ? "Reading YouTube title, description, and captions…"
+            : "Hang tight — we're reading the video for you."}
+        </p>
+        {videoUrl ? (
+          <p style={{ fontSize: "0.75rem", color: "var(--text-dim)", marginTop: "0.5rem", wordBreak: "break-all" }}>
+            {videoUrl.length > 72 ? `${videoUrl.slice(0, 72)}…` : videoUrl}
+          </p>
+        ) : null}
+        <ol className="extract-stages">
+          {STAGES.map((label, i) => (
+            <li
+              key={label}
+              className={
+                i < stageIdx ? "extract-stages__done" : i === stageIdx ? "extract-stages__active" : undefined
+              }
+            >
+              {i < stageIdx ? "✓ " : i === stageIdx ? "● " : "○ "}
+              {label}
+            </li>
+          ))}
+        </ol>
+      </div>
+    );
+  }
+
+  return (
+    <div className="page reveal-up">
+      <h1 className="page-title">Import video</h1>
+      <p className="page-sub">
+        Paste a TikTok, YouTube, or YouTube Shorts link — or add a recipe by hand.
+      </p>
+
+      <div className="platform-pills" aria-label="Supported platforms">
+        {PLATFORMS.map((p) => (
+          <span key={p.id} className={`platform-pill ${detected === p.id ? "platform-pill--on" : ""}`}>
+            {p.label}
+          </span>
+        ))}
+      </div>
+
+      {error ? (
+        <div className="card" role="alert" style={{ borderColor: "var(--danger-soft-text)", color: "var(--danger-soft-text)", marginBottom: "1rem" }}>
+          {error}
+          {isYoutubeBotError(error) ? (
+            <p style={{ margin: "0.75rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)", lineHeight: 1.45 }}>
+              YouTube often needs cookies on the server. Add <code style={{ fontSize: "0.78rem" }}>YTDLP_COOKIES_FILE</code> or{" "}
+              <code style={{ fontSize: "0.78rem" }}>YTDLP_COOKIES_FROM_BROWSER=chrome</code> in <code style={{ fontSize: "0.78rem" }}>backend/.env</code>{" "}
+              (see README), restart the API, then try again.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <form
+        className="card form-stack"
+        style={{ padding: "0.85rem" }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          void runExtract(videoUrl);
+        }}
+      >
+        <label className="field">
+          <span className="field__label">Video URL</span>
+          <input
+            className="input"
+            type="url"
+            inputMode="url"
+            placeholder="TikTok, youtube.com/watch, youtu.be, or /shorts/…"
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+            autoFocus
+          />
+        </label>
+        {detected && detected !== "unknown" ? (
+          <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--accent)" }}>
+            Detected: {platformDisplayName(detected)}
+          </p>
+        ) : null}
+        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+          <input type="checkbox" checked={useAi} onChange={(e) => setUseAi(e.target.checked)} />
+          Use AI to structure recipe
+        </label>
+        <button type="submit" className="btn btn--primary btn--block" disabled={!videoUrl.trim()}>
+          Extract recipe
+        </button>
+      </form>
+
+      <div className="import-divider" role="separator">
+        <span>or</span>
+      </div>
+
+      <Link to="/new" className="btn btn--secondary btn--block" style={{ textAlign: "center", textDecoration: "none" }}>
+        Add recipe manually
+      </Link>
+      <p className="page-sub" style={{ marginTop: "0.65rem", marginBottom: 0, fontSize: "0.82rem" }}>
+        No video needed — type title, ingredients, and steps yourself.
+      </p>
+    </div>
+  );
+}

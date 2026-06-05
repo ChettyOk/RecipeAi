@@ -1,4 +1,4 @@
-"""Use Google Gemini (Google AI Studio / free-tier Gemini API) to structure video text into a recipe draft."""
+"""Use Google Gemini (Google AI Studio / free-tier Gemini API) to structure recipe text into JSON."""
 
 from __future__ import annotations
 
@@ -12,17 +12,35 @@ from google.genai import errors as genai_errors
 from google.genai import types
 
 from app.config import GEMINI_API_KEY, GEMINI_MODEL, GEMINI_MODEL_FALLBACKS
-from app.schemas import RecipeBase
-from app.video_context import VideoContext
+from app.schemas import DIETARY_FLAGS, RecipeBase
 
-SYSTEM = """You extract one cooking recipe from text taken from a social video (title, description, and/or subtitles).
+SYSTEM = f"""You extract ONE cooking recipe from text taken from a social cooking video.
+The text may include the title, the description/caption, on-screen text (OCR), and an audio transcript.
 Rules:
 - title: concise recipe name suitable for a recipe card (not clickbait).
-- ingredients: each item one string with amounts/units when stated in the source.
-- steps: ordered prep/cook steps; one clear action per string.
-- Only use information supported by the provided text. If there is no real recipe, return a sensible title like "Could not parse recipe" with empty ingredients and steps, or minimal notes in steps explaining why.
-- Respond with JSON only, no markdown fences. Schema: {"title": string, "ingredients": string[], "steps": string[]}
+- ingredients: each item one string, include quantity + unit when stated (e.g. "2 cups flour").
+- steps: ordered prep/cook instructions; one clear action per string.
+- prep_time_min / cook_time_min: integers in minutes if stated or clearly implied, else null.
+- servings: integer if stated or clearly implied, else null.
+- dietary_flags: subset of {DIETARY_FLAGS} that clearly apply, else [].
+- Only use information supported by the provided text. If there is no real recipe, use title "Could not parse recipe" with empty ingredients/steps.
+- Respond with JSON only, no markdown fences.
+JSON schema: {{"title": string, "ingredients": string[], "steps": string[], "prep_time_min": int|null, "cook_time_min": int|null, "servings": int|null, "dietary_flags": string[]}}
 """
+
+_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "ingredients": {"type": "array", "items": {"type": "string"}},
+        "steps": {"type": "array", "items": {"type": "string"}},
+        "prep_time_min": {"type": "integer", "nullable": True},
+        "cook_time_min": {"type": "integer", "nullable": True},
+        "servings": {"type": "integer", "nullable": True},
+        "dietary_flags": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["title", "ingredients", "steps"],
+}
 
 
 class GeminiUpstreamError(Exception):
@@ -60,22 +78,28 @@ def _parse_json_from_model(text: str) -> dict[str, Any]:
     return json.loads(t)
 
 
+def _coerce_int(value: Any) -> int | None:
+    try:
+        if value is None:
+            return None
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
 def _draft_from_parsed(data: dict[str, Any]) -> RecipeBase:
     title = str(data.get("title") or "").strip() or "Imported recipe"
-    ingredients = data.get("ingredients")
-    steps = data.get("steps")
-    if not isinstance(ingredients, list):
-        ingredients = []
-    if not isinstance(steps, list):
-        steps = []
-    ingredients = [str(x).strip() for x in ingredients if str(x).strip()]
-    steps = [str(x).strip() for x in steps if str(x).strip()]
-    return RecipeBase.model_validate(
-        {
-            "title": title,
-            "ingredients": ingredients,
-            "steps": steps,
-        }
+    ingredients = data.get("ingredients") if isinstance(data.get("ingredients"), list) else []
+    steps = data.get("steps") if isinstance(data.get("steps"), list) else []
+    flags = data.get("dietary_flags") if isinstance(data.get("dietary_flags"), list) else []
+    return RecipeBase(
+        title=title,
+        ingredients=[str(x) for x in ingredients],
+        steps=[str(x) for x in steps],
+        prep_time_min=_coerce_int(data.get("prep_time_min")),
+        cook_time_min=_coerce_int(data.get("cook_time_min")),
+        servings=_coerce_int(data.get("servings")),
+        dietary_flags=[str(x) for x in flags],
     )
 
 
@@ -86,19 +110,15 @@ def _quota_error_message(exc: genai_errors.ClientError) -> str:
         return (
             "Gemini free-tier quota for this model is 0 (model may be unavailable on your key or region). "
             "Try GEMINI_MODEL=gemini-2.0-flash-lite in backend/.env, wait and retry, check https://ai.dev/rate-limit , "
-            "or uncheck “Use Gemini” for heuristic-only import."
-        )
-    if "retry in" in low or "retrydelay" in low:
-        return (
-            f"Gemini rate limit (429): {msg}. Wait a minute and retry, or use heuristic import (uncheck Use Gemini)."
+            "or uncheck \u201cUse Gemini\u201d for heuristic-only import."
         )
     return (
-        "Gemini quota or rate limit (429). Free tier has caps — wait and retry, try GEMINI_MODEL=gemini-2.0-flash-lite, "
-        "or see https://ai.google.dev/gemini-api/docs/rate-limits"
+        "Gemini quota or rate limit (429). Free tier has caps \u2014 wait and retry, try "
+        "GEMINI_MODEL=gemini-2.0-flash-lite, or see https://ai.google.dev/gemini-api/docs/rate-limits"
     )
 
 
-def _generate_once(client: genai.Client, model: str, user_msg: str) -> RecipeBase:
+def _generate_once(client: "genai.Client", model: str, user_msg: str) -> RecipeBase:
     response = client.models.generate_content(
         model=model,
         contents=user_msg,
@@ -106,6 +126,7 @@ def _generate_once(client: genai.Client, model: str, user_msg: str) -> RecipeBas
             system_instruction=SYSTEM,
             temperature=0.2,
             response_mime_type="application/json",
+            response_schema=_RESPONSE_SCHEMA,
         ),
     )
     try:
@@ -119,21 +140,21 @@ def _generate_once(client: genai.Client, model: str, user_msg: str) -> RecipeBas
     return _draft_from_parsed(_parse_json_from_model(raw))
 
 
-def extract_recipe_draft(ctx: VideoContext) -> AiExtractionOutcome:
+def structure_recipe(context_text: str) -> AiExtractionOutcome:
+    """Turn combined recipe text (captions + transcript + on-screen text) into a structured draft."""
     if not GEMINI_API_KEY:
         raise RuntimeError(
-            "GEMINI_API_KEY (or GOOGLE_API_KEY) is not set — create a free key at https://aistudio.google.com/app/apikey"
+            "GEMINI_API_KEY (or GOOGLE_API_KEY) is not set \u2014 create a free key at "
+            "https://aistudio.google.com/app/apikey"
         )
-
-    block = ctx.as_prompt_block()
-    if not block.strip():
-        raise ValueError("No usable text from this URL (no title, description, or captions).")
+    if not context_text.strip():
+        raise ValueError("No usable text (no title, description, captions, transcript, or on-screen text).")
 
     client = genai.Client(api_key=GEMINI_API_KEY)
     user_msg = (
         "Extract the recipe from the following content.\n\n"
-        f"{block}\n\n"
-        "Return JSON with keys title, ingredients, steps only."
+        f"{context_text}\n\n"
+        "Return JSON only with keys title, ingredients, steps, prep_time_min, cook_time_min, servings, dietary_flags."
     )
 
     models = _models_to_try()
@@ -147,17 +168,14 @@ def extract_recipe_draft(ctx: VideoContext) -> AiExtractionOutcome:
             code = int(getattr(e, "code", 0) or 0)
             msg = (getattr(e, "message", None) or str(e)).lower()
             if code in (400, 401, 403) and (
-                "api key" in msg
-                or "api_key_invalid" in msg
-                or "invalid argument" in msg
-                or "permission" in msg
+                "api key" in msg or "api_key_invalid" in msg or "permission" in msg
             ):
                 raise GeminiUpstreamError(
                     "Gemini rejected the API key or access (check GEMINI_API_KEY in backend/.env). "
                     "Create a key at https://aistudio.google.com/app/apikey",
                     401 if code != 403 else 403,
                 ) from e
-            if code == 404 or "not found" in msg and "model" in msg:
+            if code == 404 or ("not found" in msg and "model" in msg):
                 continue
             if code == 429 or "resource exhausted" in msg or "quota" in msg:
                 last_quota = e
@@ -168,5 +186,4 @@ def extract_recipe_draft(ctx: VideoContext) -> AiExtractionOutcome:
 
     if last_quota is not None:
         raise GeminiUpstreamError(_quota_error_message(last_quota), 429) from last_quota
-
     raise RuntimeError(f"Gemini failed for all models tried: {', '.join(models)}")

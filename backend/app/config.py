@@ -1,9 +1,11 @@
 import os
+import shutil
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 _backend_dir = Path(__file__).resolve().parent.parent
+# Load RecipeAI/.env first, then backend/.env (backend wins for duplicate keys).
 load_dotenv(_backend_dir.parent / ".env", override=True)
 load_dotenv(_backend_dir / ".env", override=True)
 
@@ -23,24 +25,48 @@ def _clean_secret(value: str) -> str:
     return s.strip()
 
 
-# Google AI Studio / Gemini API (free tier): https://aistudio.google.com/app/apikey
+def _flag(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
+# ── Google AI Studio / Gemini (free tier): https://aistudio.google.com/app/apikey ──
 GEMINI_API_KEY: str = _clean_secret(os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", ""))
 # Default flash-lite: better free-tier availability than gemini-2.0-flash for many keys.
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite").strip()
 GEMINI_MODEL_FALLBACKS: str = os.getenv(
     "GEMINI_MODEL_FALLBACKS",
-    "gemini-2.0-flash-lite,gemini-1.5-flash,gemini-2.0-flash",
+    "gemini-2.0-flash-lite,gemini-2.5-flash-lite,gemini-2.5-flash,gemini-1.5-flash,gemini-2.0-flash",
 ).strip()
-GEMINI_FALLBACK_ON_QUOTA: bool = os.getenv("GEMINI_FALLBACK_ON_QUOTA", "true").strip().lower() in (
-    "1",
-    "true",
-    "yes",
-    "on",
-)
+GEMINI_FALLBACK_ON_QUOTA: bool = _flag("GEMINI_FALLBACK_ON_QUOTA", True)
 
-# YouTube often blocks unauthenticated yt-dlp; pass cookies (see README / .env.example).
+# ── Media pipeline (download + ffmpeg + Gemini audio transcription + frame vision) ──
+# Off by default: keeps the app light and avoids downloading videos unless you opt in.
+ENABLE_MEDIA_PIPELINE: bool = _flag("ENABLE_MEDIA_PIPELINE", False)
+ENABLE_TRANSCRIPTION: bool = _flag("ENABLE_TRANSCRIPTION", True)  # within media pipeline
+ENABLE_FRAME_VISION: bool = _flag("ENABLE_FRAME_VISION", True)  # within media pipeline
+FRAME_INTERVAL_SEC: int = int(os.getenv("FRAME_INTERVAL_SEC", "4") or "4")
+MAX_FRAMES: int = int(os.getenv("MAX_FRAMES", "8") or "8")
+MAX_VIDEO_SECONDS: int = int(os.getenv("MAX_VIDEO_SECONDS", "240") or "240")
+FFMPEG_BIN: str = os.getenv("FFMPEG_BIN", "ffmpeg").strip() or "ffmpeg"
+FFPROBE_BIN: str = os.getenv("FFPROBE_BIN", "ffprobe").strip() or "ffprobe"
+
+# ── Nutrition: USDA FoodData Central (free): https://fdc.nal.usda.gov/api-key-signup.html ──
+USDA_API_KEY: str = _clean_secret(os.getenv("USDA_API_KEY", ""))
+ENABLE_NUTRITION: bool = _flag("ENABLE_NUTRITION", True)
+# AI nutrition estimates are non-deterministic and override video-stated macros — off by default.
+ENABLE_GEMINI_NUTRITION: bool = _flag("ENABLE_GEMINI_NUTRITION", False)
+
+# ── yt-dlp cookies / YouTube hardening (see README) ──
 YTDLP_COOKIES_FILE: str = os.getenv("YTDLP_COOKIES_FILE", "").strip()
 YTDLP_COOKIES_FROM_BROWSER: str = os.getenv("YTDLP_COOKIES_FROM_BROWSER", "").strip()
-
-# Comma-separated yt-dlp YouTube player_client fallbacks (empty = built-in default list). Set to "off" to disable.
 YTDLP_YOUTUBE_PLAYER_CLIENTS: str = os.getenv("YTDLP_YOUTUBE_PLAYER_CLIENTS", "").strip()
+
+# Comma-separated extra CORS origins (the Vite dev server is always allowed).
+EXTRA_CORS_ORIGINS: str = os.getenv("EXTRA_CORS_ORIGINS", "").strip()
+
+
+def ffmpeg_available() -> bool:
+    return shutil.which(FFMPEG_BIN) is not None and shutil.which(FFPROBE_BIN) is not None

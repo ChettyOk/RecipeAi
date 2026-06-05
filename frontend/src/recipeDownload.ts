@@ -9,12 +9,35 @@ function safeFilenameBase(title: string): string {
   return s || "recipe";
 }
 
+function metaLine(r: Recipe): string {
+  const bits: string[] = [];
+  if (r.prep_time_min != null) bits.push(`Prep ${r.prep_time_min} min`);
+  if (r.cook_time_min != null) bits.push(`Cook ${r.cook_time_min} min`);
+  if (r.servings != null) bits.push(`Serves ${r.servings}`);
+  return bits.join(" · ");
+}
+
+function macrosLine(r: Recipe): string {
+  const n = r.nutrition?.per_serving;
+  if (!n) return "";
+  const parts: string[] = [];
+  if (n.calories != null) parts.push(`${Math.round(n.calories)} kcal`);
+  if (n.protein_g != null) parts.push(`${Math.round(n.protein_g)}g protein`);
+  if (n.carbs_g != null) parts.push(`${Math.round(n.carbs_g)}g carbs`);
+  if (n.fat_g != null) parts.push(`${Math.round(n.fat_g)}g fat`);
+  if (n.fiber_g != null) parts.push(`${Math.round(n.fiber_g)}g fiber`);
+  return parts.length ? `Per serving: ${parts.join(", ")}` : "";
+}
+
 export function recipeToMarkdown(r: Recipe): string {
   const ing = r.ingredients.map((line) => `- ${line}`).join("\n");
   const steps = r.steps.map((line, i) => `${i + 1}. ${line}`).join("\n");
+  const meta = metaLine(r);
+  const macros = macrosLine(r);
+  const flags = r.dietary_flags?.length ? `**Dietary:** ${r.dietary_flags.join(", ")}\n\n` : "";
   return `# ${r.title}
 
-## Ingredients
+${meta ? `_${meta}_\n\n` : ""}${flags}${macros ? `**${macros}**\n\n` : ""}## Ingredients
 
 ${ing || "_None listed_"}
 
@@ -30,9 +53,12 @@ _Exported ${r.created_at} (updated ${r.updated_at})_
 export function recipeToPlainText(r: Recipe): string {
   const ing = r.ingredients.map((line) => `• ${line}`).join("\n");
   const steps = r.steps.map((line, i) => `${i + 1}. ${line}`).join("\n");
+  const meta = metaLine(r);
+  const macros = macrosLine(r);
+  const flags = r.dietary_flags?.length ? `Dietary: ${r.dietary_flags.join(", ")}\n` : "";
   return `${r.title}
 ${"=".repeat(Math.min(r.title.length, 60))}
-
+${meta ? `${meta}\n` : ""}${flags}${macros ? `${macros}\n` : ""}
 INGREDIENTS
 ${ing || "(none)"}
 

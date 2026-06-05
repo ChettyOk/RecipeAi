@@ -18,6 +18,7 @@ from app.config import (
     YTDLP_COOKIES_FROM_BROWSER,
     YTDLP_YOUTUBE_PLAYER_CLIENTS,
 )
+from app.thumbnail import pick_best_thumbnail
 
 MAX_TRANSCRIPT_CHARS = 18_000
 
@@ -87,6 +88,7 @@ class VideoContext:
     title: str
     description: str
     transcript: str
+    thumbnail_url: str | None = None
 
     def as_prompt_block(self) -> str:
         parts: list[str] = []
@@ -220,8 +222,9 @@ def fetch_video_context(url: str) -> VideoContext:
     title = str(info.get("title") or "").strip()
     description = str(info.get("description") or info.get("alt_title") or "").strip()
     transcript = _download_best_transcript(info, cookiejar=cookiejar).strip()
+    thumbnail_url = pick_best_thumbnail(info)
 
     if len(transcript) > MAX_TRANSCRIPT_CHARS:
         transcript = transcript[:MAX_TRANSCRIPT_CHARS] + "\n\n[…truncated…]"
 
-    return VideoContext(title=title, description=description, transcript=transcript)
+    return VideoContext(title=title, description=description, transcript=transcript, thumbnail_url=thumbnail_url)
