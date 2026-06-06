@@ -28,6 +28,20 @@ class Recipe(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class DailyLogEntry(Base):
+    """Meals logged per day (single-user MVP)."""
+
+    __tablename__ = "daily_log_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    log_date: Mapped[str] = mapped_column(String(10), nullable=False, index=True)  # YYYY-MM-DD
+    recipe_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    servings: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    nutrition: Mapped[str] = mapped_column(Text, nullable=False)  # JSON Nutrition per serving
+    logged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Profile(Base):
     """Single-user profile (MVP, no auth). One row, conventionally id=1."""
 

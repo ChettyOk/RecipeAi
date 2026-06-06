@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as api from "../api";
 import { ACTIVITY_LEVELS, SEXES } from "../api";
+import { BodyStatsFields } from "../components/BodyStatsFields";
 import { MacroRing } from "../components/MacroRing";
 import { markOnboardingDone } from "../lib/storage";
 
@@ -15,9 +16,9 @@ export function OnboardingPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [goal, setGoal] = useState<string>("maintain");
-  const [heightCm, setHeightCm] = useState("");
-  const [weightKg, setWeightKg] = useState("");
-  const [age, setAge] = useState("");
+  const [heightCm, setHeightCm] = useState<number | null>(null);
+  const [weightKg, setWeightKg] = useState<number | null>(null);
+  const [age, setAge] = useState<number | null>(null);
   const [sex, setSex] = useState("male");
   const [activity, setActivity] = useState("moderate");
   const [targets, setTargets] = useState<api.DailyTargets | null>(null);
@@ -48,9 +49,9 @@ export function OnboardingPage() {
     setSaving(true);
     try {
       const p = await api.saveProfile({
-        height_cm: parseFloat(heightCm) || null,
-        weight_kg: parseFloat(weightKg) || null,
-        age: parseInt(age, 10) || null,
+        height_cm: heightCm,
+        weight_kg: weightKg,
+        age: age,
         sex,
         activity_level: activity,
         goal,
@@ -71,9 +72,9 @@ export function OnboardingPage() {
   async function loadPreviewTargets() {
     try {
       const p = await api.saveProfile({
-        height_cm: parseFloat(heightCm) || null,
-        weight_kg: parseFloat(weightKg) || null,
-        age: parseInt(age, 10) || null,
+        height_cm: heightCm,
+        weight_kg: weightKg,
+        age: age,
         sex,
         activity_level: activity,
         goal,
@@ -122,18 +123,14 @@ export function OnboardingPage() {
         <>
           <p className="page-sub">Optional — used for daily calorie & macro targets. You can add these anytime in Profile.</p>
           <div className="card form-stack" style={{ padding: "0.85rem" }}>
-            <label className="field">
-              <span className="field__label">Age</span>
-              <input className="input" type="number" min={13} max={100} value={age} onChange={(e) => setAge(e.target.value)} />
-            </label>
-            <label className="field">
-              <span className="field__label">Weight (kg)</span>
-              <input className="input" type="number" min={30} value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
-            </label>
-            <label className="field">
-              <span className="field__label">Height (cm)</span>
-              <input className="input" type="number" min={100} value={heightCm} onChange={(e) => setHeightCm(e.target.value)} />
-            </label>
+            <BodyStatsFields
+              heightCm={heightCm}
+              weightKg={weightKg}
+              age={age}
+              onHeightCm={setHeightCm}
+              onWeightKg={setWeightKg}
+              onAge={setAge}
+            />
             <label className="field">
               <span className="field__label">Sex</span>
               <select className="select" value={sex} onChange={(e) => setSex(e.target.value)}>

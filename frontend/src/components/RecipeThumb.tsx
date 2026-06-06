@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { recipeThumbnailUrl } from "../api";
 import { platformLabel, resolveThumbnailUrl, titleHue } from "../lib/thumbnail";
 
 export type RecipeThumbProps = {
   title: string;
+  recipeId?: number;
   thumbnailUrl?: string | null;
   sourceUrl?: string | null;
   sourcePlatform?: string | null;
@@ -13,6 +15,7 @@ export type RecipeThumbProps = {
 
 export function RecipeThumb({
   title,
+  recipeId,
   thumbnailUrl,
   sourceUrl,
   sourcePlatform,
@@ -20,7 +23,10 @@ export function RecipeThumb({
   proteinG,
   variant = "card",
 }: RecipeThumbProps) {
-  const src = useMemo(() => resolveThumbnailUrl(thumbnailUrl, sourceUrl), [thumbnailUrl, sourceUrl]);
+  const src = useMemo(() => {
+    if (recipeId != null) return recipeThumbnailUrl(recipeId);
+    return resolveThumbnailUrl(thumbnailUrl, sourceUrl);
+  }, [recipeId, thumbnailUrl, sourceUrl]);
   const [imgFailed, setImgFailed] = useState(false);
   useEffect(() => {
     setImgFailed(false);

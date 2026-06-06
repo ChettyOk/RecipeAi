@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { Recipe } from "../api";
 import * as api from "../api";
+import { RecipeGridSkeleton } from "../components/RecipeCardSkeleton";
 import { RecipeThumb } from "../components/RecipeThumb";
 
 export function CookbookPage() {
@@ -26,7 +27,14 @@ export function CookbookPage() {
     void load();
   }, [load]);
 
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>Loading cookbook…</p>;
+  if (loading) {
+    return (
+      <div className="page">
+        <h1 className="page-title">Cookbook</h1>
+        <RecipeGridSkeleton count={6} />
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -56,25 +64,28 @@ export function CookbookPage() {
 
   return (
     <div className="page">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem", gap: "0.5rem" }}>
+      <header className="page-header">
         <h1 className="page-title" style={{ margin: 0 }}>Cookbook</h1>
-        <div className="btn-row" style={{ margin: 0, flexShrink: 0 }}>
-          <button type="button" className="btn btn--ghost" style={{ padding: "0.4rem 0.65rem", fontSize: "0.78rem" }} onClick={() => navigate("/new")}>
-            + Manual
-          </button>
-          <button type="button" className="btn btn--secondary" style={{ padding: "0.4rem 0.65rem", fontSize: "0.78rem" }} onClick={() => navigate("/import")}>
-            Import
-          </button>
-        </div>
+        <p className="page-sub" style={{ marginBottom: 0 }}>
+          {recipes.length} saved · no impact on today&apos;s log until you log a meal
+        </p>
+      </header>
+
+      <div className="add-recipe-bar">
+        <button type="button" className="btn btn--primary" onClick={() => navigate("/import")}>
+          Import video
+        </button>
+        <button type="button" className="btn btn--secondary" onClick={() => navigate("/new")}>
+          Add manually
+        </button>
       </div>
-      <p style={{ margin: "0 0 0.5rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>{recipes.length} saved</p>
-      <p className="page-sub">Saved for later — no impact on today's log until you log a meal.</p>
 
       <ul className="recipe-grid">
         {recipes.map((r) => (
           <li key={r.id}>
             <Link to={`/recipe/${r.id}`} className="recipe-card">
               <RecipeThumb
+                recipeId={r.id}
                 title={r.title}
                 thumbnailUrl={r.thumbnail_url}
                 sourceUrl={r.source_url}

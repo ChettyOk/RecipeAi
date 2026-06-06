@@ -1,12 +1,14 @@
 import json
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import app.config as config  # noqa: F401 — load .env before other app imports use env
+from app.daily_log import add_entry, delete_entry, get_log_for_date, week_summary
 from app.database import ensure_schema, get_db
 from app.gemini_extract import GeminiUpstreamError
 from app.insights import build_insights, compute_targets
@@ -14,8 +16,11 @@ from app.models import Profile, Recipe
 from app.nutrition import compute_nutrition
 from app.nutrition_portion import portion_nutrition
 from app.pipeline import run_pipeline
-from app.video_urls import normalize_video_url
 from app.schemas import (
+    DailyLogDay,
+    DailyLogEntryCreate,
+    DailyLogEntryRead,
+    DailyLogWeekDay,
     ExtractFromVideoResponse,
     InsightsRequest,
     NutritionReport,
@@ -34,8 +39,16 @@ from app.schemas import (
     row_to_read,
     utc_now,
 )
+from app.thumbnail_cache import (
+    cache_thumbnail,
+    delete_thumbnail,
+    get_or_cache_thumbnail,
+    resolve_remote_thumbnail_url,
+)
+from app.video_context import fetch_video_context
+from app.video_urls import normalize_video_url
 
-app = FastAPI(title="Recipe API", version="0.2.0")
+app = FastAPI(title="Recipe API", version="0.3.0")
 
 _default_origins = ["http://127.0.0.1:5173", "http://localhost:5173"]
 _extra = [o.strip() for o in config.EXTRA_CORS_ORIGINS.split(",") if o.strip()]
@@ -79,6 +92,28 @@ def get_recipe(recipe_id: int, db: Annotated[Session, Depends(get_db)]) -> Recip
     if recipe is None:
         raise HTTPException(status_code=404, detail="Recipe not found")
     return row_to_read(recipe)
+
+
+@app.get("/recipes/{recipe_id}/thumbnail")
+def recipe_thumbnail(recipe_id: int, db: Annotated[Session, Depends(get_db)]):
+    recipe = db.get(Recipe, recipe_id)
+    if recipe is None:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    cached = get_or_cache_thumbnail(recipe_id, recipe.thumbnail_url, recipe.source_url)
+    if cached:
+        media = "image/jpeg"
+        if cached.suffix == ".webp":
+            media = "image/webp"
+        elif cached.suffix == ".png":
+            media = "image/png"
+        return FileResponse(cached, media_type=media, headers={"Cache-Control": "public, max-age=86400"})
+
+    remote = resolve_remote_thumbnail_url(recipe.thumbnail_url, recipe.source_url)
+    if remote:
+        return RedirectResponse(remote, status_code=302)
+
+    raise HTTPException(status_code=404, detail="No thumbnail")
 
 
 @app.post("/recipes/extract-from-video", response_model=ExtractFromVideoResponse)
@@ -152,8 +187,15 @@ def nutrition_portion(body: PortionRequest) -> PortionResponse:
     return PortionResponse(portion=portion, scale_factor=round(factor, 4), warning=warning)
 
 
-def _get_profile_base(db: Session) -> ProfileBase | None:
+def _get_profile_row(db: Session) -> Profile | None:
     row = db.get(Profile, 1)
+    if row is not None:
+        return row
+    return db.scalars(select(Profile).order_by(Profile.id).limit(1)).first()
+
+
+def _get_profile_base(db: Session) -> ProfileBase | None:
+    row = _get_profile_row(db)
     if row is None:
         return None
     return profile_row_to_base(row)
@@ -169,7 +211,7 @@ def get_profile(db: Annotated[Session, Depends(get_db)]) -> ProfileRead:
 
 @app.put("/profile", response_model=ProfileRead)
 def put_profile(body: ProfileBase, db: Annotated[Session, Depends(get_db)]) -> ProfileRead:
-    row = db.get(Profile, 1)
+    row = _get_profile_row(db)
     if row is None:
         row = Profile(id=1)
         db.add(row)
@@ -183,7 +225,35 @@ def put_profile(body: ProfileBase, db: Annotated[Session, Depends(get_db)]) -> P
     row.dietary_prefs = json.dumps(body.dietary_prefs)
     row.updated_at = utc_now()
     db.commit()
-    return ProfileRead(**body.model_dump(), targets=compute_targets(body))
+    db.refresh(row)
+    base = profile_row_to_base(row)
+    return ProfileRead(**base.model_dump(), targets=compute_targets(base))
+
+
+@app.get("/daily-log", response_model=DailyLogDay)
+def daily_log_get(
+    db: Annotated[Session, Depends(get_db)],
+    log_date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+) -> DailyLogDay:
+    return get_log_for_date(db, log_date)
+
+
+@app.post("/daily-log", response_model=DailyLogEntryRead, status_code=201)
+def daily_log_add(body: DailyLogEntryCreate, db: Annotated[Session, Depends(get_db)]) -> DailyLogEntryRead:
+    return add_entry(db, body)
+
+
+@app.delete("/daily-log/{entry_id}", status_code=204)
+def daily_log_delete(entry_id: int, db: Annotated[Session, Depends(get_db)]) -> None:
+    delete_entry(db, entry_id)
+
+
+@app.get("/daily-log/week", response_model=list[DailyLogWeekDay])
+def daily_log_week(
+    db: Annotated[Session, Depends(get_db)],
+    days: int = Query(default=7, ge=1, le=31),
+) -> list[DailyLogWeekDay]:
+    return week_summary(db, days)
 
 
 @app.post("/insights", response_model=RecipeInsights)
@@ -217,6 +287,7 @@ def create_recipe(body: RecipeCreate, db: Annotated[Session, Depends(get_db)]) -
     db.add(recipe)
     db.commit()
     db.refresh(recipe)
+    cache_thumbnail(recipe.id, recipe.thumbnail_url, recipe.source_url)
     return row_to_read(recipe)
 
 
@@ -255,10 +326,51 @@ def update_recipe(
     return row_to_read(recipe)
 
 
+@app.post("/recipes/{recipe_id}/refresh-nutrition", response_model=RecipeRead)
+def refresh_recipe_nutrition(recipe_id: int, db: Annotated[Session, Depends(get_db)]) -> RecipeRead:
+    """Re-fetch video caption (if source URL) and recompute macros."""
+    recipe = db.get(Recipe, recipe_id)
+    if recipe is None:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    ingredients = json.loads(recipe.ingredients)
+    context = recipe.source_context_text
+
+    if recipe.source_url:
+        try:
+            url = normalize_video_url(recipe.source_url)
+            ctx = fetch_video_context(url)
+            blob = "\n\n".join(
+                x for x in (ctx.description.strip(), ctx.transcript.strip()) if x
+            )
+            if blob:
+                context = blob
+                recipe.source_context_text = blob
+            if ctx.thumbnail_url:
+                recipe.thumbnail_url = ctx.thumbnail_url
+                delete_thumbnail(recipe_id)
+                cache_thumbnail(recipe_id, ctx.thumbnail_url, url)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+
+    if not config.ENABLE_NUTRITION:
+        raise HTTPException(status_code=503, detail="Nutrition is disabled on the server.")
+
+    nutrition = compute_nutrition(ingredients, recipe.servings, context_text=context)
+    recipe.nutrition = nutrition.model_dump_json()
+    if nutrition.servings and (recipe.servings is None or recipe.servings == 1):
+        recipe.servings = nutrition.servings
+    recipe.updated_at = utc_now()
+    db.commit()
+    db.refresh(recipe)
+    return row_to_read(recipe)
+
+
 @app.delete("/recipes/{recipe_id}", status_code=204)
 def delete_recipe(recipe_id: int, db: Annotated[Session, Depends(get_db)]) -> None:
     recipe = db.get(Recipe, recipe_id)
     if recipe is None:
         raise HTTPException(status_code=404, detail="Recipe not found")
+    delete_thumbnail(recipe_id)
     db.delete(recipe)
     db.commit()

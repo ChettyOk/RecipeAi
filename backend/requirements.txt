@@ -5,5 +5,6 @@ pydantic==2.10.3
 google-genai>=1.0.0
 python-dotenv>=1.0.0
 yt-dlp>=2026.3.17  # keep current: TikTok/YouTube change often (run `pip install -U yt-dlp` if extraction breaks)
+pytest>=8.0.0
 # Note: the media pipeline (audio transcription + frame vision) also requires the
 # system `ffmpeg`/`ffprobe` binaries (e.g. `brew install ffmpeg`), not a pip package.

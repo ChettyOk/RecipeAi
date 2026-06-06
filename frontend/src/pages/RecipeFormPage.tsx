@@ -193,9 +193,9 @@ export function RecipeFormPage() {
   if (loading) return <p style={{ color: "var(--text-muted)" }}>Loading…</p>;
 
   return (
-    <section className="page reveal-up">
+    <section className={`page ${showReveal ? "reveal-card-spring" : "reveal-up"}`}>
       {showReveal && nutrition?.per_serving ? (
-        <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: "1rem" }}>
+        <div className="card macro-reveal-card" style={{ padding: 0, overflow: "hidden", marginBottom: "1rem" }}>
           <MacroHero
             animate
             calories={nutrition.per_serving.calories}

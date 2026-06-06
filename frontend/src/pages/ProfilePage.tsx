@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import type { DailyTargets, Profile } from "../api";
+import type { DailyLogWeekDay, DailyTargets, Profile } from "../api";
 import * as api from "../api";
 import { ACTIVITY_LEVELS, ALLERGENS, DIETARY_FLAGS, GOALS, SEXES } from "../api";
-import { getDailyLog } from "../lib/storage";
+import { BodyStatsFields } from "../components/BodyStatsFields";
+import { loadTodayLog } from "../lib/dailyLog";
+import { resolveBodyStats } from "../lib/bodyMetrics";
 
 const ACTIVITY_LABEL: Record<string, string> = {
   sedentary: "Sedentary",
@@ -18,18 +20,10 @@ const GOAL_LABEL: Record<string, string> = {
   gain: "Gain / build",
 };
 
-function str(n: number | null | undefined): string {
-  return n == null ? "" : String(n);
-}
-function num(text: string): number | null {
-  const v = parseFloat(text);
-  return Number.isFinite(v) ? v : null;
-}
-
 export function ProfilePage() {
-  const [heightCm, setHeightCm] = useState("");
-  const [weightKg, setWeightKg] = useState("");
-  const [age, setAge] = useState("");
+  const [heightCm, setHeightCm] = useState<number | null>(null);
+  const [weightKg, setWeightKg] = useState<number | null>(null);
+  const [age, setAge] = useState<number | null>(null);
   const [sex, setSex] = useState<string>("");
   const [activity, setActivity] = useState<string>("");
   const [goal, setGoal] = useState<string>("");
@@ -41,22 +35,25 @@ export function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [mealsLogged, setMealsLogged] = useState(0);
+  const [week, setWeek] = useState<DailyLogWeekDay[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    void api
-      .getProfile()
-      .then((p) => {
+    void Promise.all([api.getProfile(), loadTodayLog(), api.fetchDailyLogWeek(7)])
+      .then(([p, log, w]) => {
         if (cancelled) return;
-        setHeightCm(str(p.height_cm));
-        setWeightKg(str(p.weight_kg));
-        setAge(str(p.age));
+        setHeightCm(p.height_cm);
+        setWeightKg(p.weight_kg);
+        setAge(p.age);
         setSex(p.sex ?? "");
         setActivity(p.activity_level ?? "");
         setGoal(p.goal ?? "");
         setAllergies(p.allergies ?? []);
         setPrefs(p.dietary_prefs ?? []);
         setTargets(p.targets);
+        setMealsLogged(log.entries.length);
+        setWeek(w);
       })
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : "Failed to load profile"))
       .finally(() => !cancelled && setLoading(false));
@@ -74,10 +71,11 @@ export function ProfilePage() {
     setError(null);
     setSaving(true);
     setSaved(false);
+    const stats = resolveBodyStats({ heightCm, weightKg, age });
     const payload: Profile = {
-      height_cm: num(heightCm),
-      weight_kg: num(weightKg),
-      age: num(age),
+      height_cm: stats.heightCm,
+      weight_kg: stats.weightKg,
+      age: stats.age,
       sex: sex || null,
       activity_level: activity || null,
       goal: goal || null,
@@ -86,6 +84,14 @@ export function ProfilePage() {
     };
     try {
       const res = await api.saveProfile(payload);
+      setHeightCm(res.height_cm);
+      setWeightKg(res.weight_kg);
+      setAge(res.age);
+      setSex(res.sex ?? "");
+      setActivity(res.activity_level ?? "");
+      setGoal(res.goal ?? "");
+      setAllergies(res.allergies ?? []);
+      setPrefs(res.dietary_prefs ?? []);
       setTargets(res.targets);
       setSaved(true);
     } catch (err) {
@@ -97,7 +103,7 @@ export function ProfilePage() {
 
   if (loading) return <p className="page-sub">Loading profile…</p>;
 
-  const mealsLogged = getDailyLog().entries.length;
+  const maxWeekCal = Math.max(...week.map((d) => d.calories ?? 0), targets?.target_calories ?? 2000, 1);
 
   return (
     <div className="page">
@@ -116,9 +122,35 @@ export function ProfilePage() {
         </p>
       </section>
 
+      {week.length > 0 ? (
+        <section className="card">
+          <strong>Last 7 days</strong>
+          <div className="week-chart" aria-label="Calories logged per day">
+            {week.map((d) => {
+              const cal = d.calories ?? 0;
+              const h = Math.max(8, Math.round((cal / maxWeekCal) * 100));
+              const dayLabel = d.date.slice(5);
+              return (
+                <div key={d.date} className="week-chart__col" title={`${d.date}: ${cal} kcal`}>
+                  <div className="week-chart__bar" style={{ height: `${h}%` }} />
+                  <span className="week-chart__lbl">{dayLabel}</span>
+                  <span className="week-chart__val">{cal > 0 ? cal : ""}</span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
       {targets ? (
         <section className="card">
           <strong>Estimated daily targets</strong>
+          {targets.bmi != null ? (
+            <p className="page-sub" style={{ marginTop: "0.35rem", marginBottom: "0.65rem" }}>
+              BMI {targets.bmi}
+              {targets.bmi_category ? ` · ${targets.bmi_category.replace("_", " ")}` : ""}
+            </p>
+          ) : null}
           <div className="targets-grid">
             <div className="target-card">
               <div className="target-card__value">{targets.target_calories ?? "—"}</div>
@@ -149,20 +181,14 @@ export function ProfilePage() {
         {error ? <div className="alert alert--error" role="alert">{error}</div> : null}
         {saved ? <div className="alert alert--success" role="status">Profile saved.</div> : null}
 
-        <div className="form-grid-3">
-          <label className="field">
-            <span className="field__label">Height (cm)</span>
-            <input className="input" type="number" min={0} step="0.1" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} />
-          </label>
-          <label className="field">
-            <span className="field__label">Weight (kg)</span>
-            <input className="input" type="number" min={0} step="0.1" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
-          </label>
-          <label className="field">
-            <span className="field__label">Age</span>
-            <input className="input" type="number" min={0} value={age} onChange={(e) => setAge(e.target.value)} />
-          </label>
-        </div>
+        <BodyStatsFields
+          heightCm={heightCm}
+          weightKg={weightKg}
+          age={age}
+          onHeightCm={setHeightCm}
+          onWeightKg={setWeightKg}
+          onAge={setAge}
+        />
 
         <label className="field">
           <span className="field__label">Sex</span>

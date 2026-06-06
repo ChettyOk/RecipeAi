@@ -120,6 +120,8 @@ export type DailyTargets = {
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
+  bmi: number | null;
+  bmi_category: string | null;
   basis: string | null;
 };
 
@@ -142,7 +144,42 @@ export type RecipeInsights = {
   substitutions: Substitution[];
 };
 
-const base = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
+export const API_BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
+const base = API_BASE;
+
+export function recipeThumbnailUrl(recipeId: number): string {
+  return `${base}/recipes/${recipeId}/thumbnail`;
+}
+
+export type DailyLogEntry = {
+  id: number;
+  recipe_id: number | null;
+  title: string;
+  servings: number;
+  nutrition: Nutrition;
+  logged_at: string;
+};
+
+export type DailyLogDay = {
+  date: string;
+  entries: DailyLogEntry[];
+  totals: Nutrition;
+};
+
+export type DailyLogWeekDay = {
+  date: string;
+  meal_count: number;
+  calories: number | null;
+};
+
+export type HealthStatus = {
+  status: string;
+  ai: boolean;
+  media_pipeline: boolean;
+  ffmpeg: boolean;
+  nutrition: boolean;
+  nutrition_usda: boolean;
+};
 
 function parseApiError(text: string, status: number): Error {
   if (!text) return new Error(`Request failed (${status})`);
@@ -258,6 +295,47 @@ export async function saveProfile(data: Profile): Promise<ProfileRead> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
+  await parse(res);
+  return res.json();
+}
+
+export async function fetchHealth(): Promise<HealthStatus> {
+  const res = await fetch(`${base}/health`);
+  await parse(res);
+  return res.json();
+}
+
+export async function fetchDailyLog(logDate?: string): Promise<DailyLogDay> {
+  const q = logDate ? `?log_date=${encodeURIComponent(logDate)}` : "";
+  const res = await fetch(`${base}/daily-log${q}`);
+  await parse(res);
+  return res.json();
+}
+
+export async function addDailyLogEntry(data: {
+  recipe_id?: number | null;
+  title: string;
+  servings: number;
+  nutrition: Nutrition;
+  log_date?: string;
+}): Promise<DailyLogEntry> {
+  const res = await fetch(`${base}/daily-log`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  await parse(res);
+  return res.json();
+}
+
+export async function fetchDailyLogWeek(days = 7): Promise<DailyLogWeekDay[]> {
+  const res = await fetch(`${base}/daily-log/week?days=${days}`);
+  await parse(res);
+  return res.json();
+}
+
+export async function refreshRecipeNutrition(id: number): Promise<Recipe> {
+  const res = await fetch(`${base}/recipes/${id}/refresh-nutrition`, { method: "POST" });
   await parse(res);
   return res.json();
 }

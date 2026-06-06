@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import * as api from "../api";
-import { Link } from "react-router-dom";
 import {
   detectPlatform,
   extractVideoUrlFromText,
@@ -28,6 +27,8 @@ export function ImportPage() {
   const navigate = useNavigate();
   const [videoUrl, setVideoUrl] = useState("");
   const [useAi, setUseAi] = useState(true);
+  const [useDeepExtract, setUseDeepExtract] = useState(false);
+  const [health, setHealth] = useState<api.HealthStatus | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [stageIdx, setStageIdx] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +36,10 @@ export function ImportPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const detected = videoUrl.trim() ? detectPlatform(videoUrl) : null;
+
+  useEffect(() => {
+    void api.fetchHealth().then(setHealth).catch(() => setHealth(null));
+  }, []);
 
   useEffect(() => {
     if (!extracting) return;
@@ -58,7 +63,10 @@ export function ImportPage() {
     setExtracting(true);
     setStageIdx(0);
     try {
-      const draft = await api.extractRecipeFromVideo(extracted, { useAi, useMedia: false });
+      const draft = await api.extractRecipeFromVideo(extracted, {
+        useAi,
+        useMedia: useDeepExtract ? true : false,
+      });
       navigate("/new", { state: { draft, reveal: true, sourceUrl: extracted } });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Extract failed");
@@ -102,11 +110,23 @@ export function ImportPage() {
                 i < stageIdx ? "extract-stages__done" : i === stageIdx ? "extract-stages__active" : undefined
               }
             >
-              {i < stageIdx ? "✓ " : i === stageIdx ? "● " : "○ "}
+              <span className="extract-stages__icon" aria-hidden>
+                {i < stageIdx ? "✓" : i === stageIdx ? "●" : "○"}
+              </span>
               {label}
+              {i === stageIdx ? <span className="extract-stages__dots" aria-hidden><span /><span /><span /></span> : null}
             </li>
           ))}
         </ol>
+
+        <div className="extract-skeleton card" aria-hidden>
+          <div className="extract-skeleton__thumb skeleton skeleton--shimmer" />
+          <div className="extract-skeleton__lines">
+            <div className="skeleton skeleton--shimmer skeleton--line" />
+            <div className="skeleton skeleton--shimmer skeleton--line skeleton--short" />
+            <div className="skeleton skeleton--shimmer skeleton--line" style={{ width: "40%" }} />
+          </div>
+        </div>
       </div>
     );
   }
@@ -164,9 +184,21 @@ export function ImportPage() {
             Detected: {platformDisplayName(detected)}
           </p>
         ) : null}
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+        <label className="check-row">
           <input type="checkbox" checked={useAi} onChange={(e) => setUseAi(e.target.checked)} />
           Use AI to structure recipe
+        </label>
+        <label className="check-row">
+          <input
+            type="checkbox"
+            checked={useDeepExtract}
+            onChange={(e) => setUseDeepExtract(e.target.checked)}
+            disabled={health != null && !health.media_pipeline}
+          />
+          Deep extract (download video + audio/OCR)
+          {health != null && !health.media_pipeline ? (
+            <span className="check-row__hint"> — needs ffmpeg + ENABLE_MEDIA_PIPELINE</span>
+          ) : null}
         </label>
         <button type="submit" className="btn btn--primary btn--block" disabled={!videoUrl.trim()}>
           Extract recipe

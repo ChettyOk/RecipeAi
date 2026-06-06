@@ -197,6 +197,8 @@ class DailyTargets(BaseModel):
     protein_g: int | None = None
     carbs_g: int | None = None
     fat_g: int | None = None
+    bmi: float | None = None
+    bmi_category: str | None = None
     basis: str | None = None  # short human explanation
 
 
@@ -265,6 +267,35 @@ class PortionResponse(BaseModel):
     portion: Nutrition
     scale_factor: float
     warning: str | None = None
+
+
+class DailyLogEntryCreate(BaseModel):
+    recipe_id: int | None = None
+    title: str = Field(..., min_length=1, max_length=200)
+    servings: float = Field(..., gt=0, le=100)
+    nutrition: Nutrition
+    log_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class DailyLogEntryRead(BaseModel):
+    id: int
+    recipe_id: int | None = None
+    title: str
+    servings: float
+    nutrition: Nutrition
+    logged_at: datetime
+
+
+class DailyLogDay(BaseModel):
+    date: str
+    entries: list[DailyLogEntryRead]
+    totals: Nutrition
+
+
+class DailyLogWeekDay(BaseModel):
+    date: str
+    meal_count: int
+    calories: float | None = None
 
 
 class ExtractFromVideoResponse(RecipeBase):

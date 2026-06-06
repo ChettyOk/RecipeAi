@@ -1,4 +1,5 @@
 import type { Nutrition } from "../api";
+import { AnimatedNumber } from "./AnimatedNumber";
 import { MacroPills } from "./MacroPills";
 
 type Props = {
@@ -12,9 +13,17 @@ export function MacroHero({ calories, nutrition, subtitle, animate }: Props) {
   return (
     <div className={`macro-hero ${animate ? "macro-hero--animate" : ""}`}>
       <p className="macro-hero__eyebrow">{subtitle ?? "per serving"}</p>
-      <p className="display-num macro-hero__cal">{calories != null ? Math.round(calories) : "—"}</p>
+      <p className="display-num macro-hero__cal">
+        {animate && calories != null ? (
+          <AnimatedNumber value={calories} duration={800} />
+        ) : calories != null ? (
+          Math.round(calories)
+        ) : (
+          "—"
+        )}
+      </p>
       <p className="macro-hero__unit">calories</p>
-      <MacroPills nutrition={nutrition} />
+      <MacroPills nutrition={nutrition} animate={animate} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Nutrition, Recipe } from "../api";
-import { logMealToday } from "../lib/storage";
+import * as api from "../api";
+import { AnimatedNumber } from "./AnimatedNumber";
 
 type Props = {
   recipe: Recipe;
@@ -11,53 +12,85 @@ type Props = {
 
 export function LogMealModal({ recipe, perServing, onClose, onLogged }: Props) {
   const [servings, setServings] = useState(1);
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function confirm() {
-    logMealToday({
-      recipeId: recipe.id,
-      title: recipe.title,
-      servings,
-      nutrition: perServing,
-    });
-    onLogged();
-    onClose();
+  async function confirm() {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.addDailyLogEntry({
+        recipe_id: recipe.id,
+        title: recipe.title,
+        servings,
+        nutrition: perServing,
+      });
+      setSuccess(true);
+      await new Promise((r) => setTimeout(r, 650));
+      onLogged();
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to log meal");
+    } finally {
+      setSaving(false);
+    }
   }
+
+  const estKcal = (perServing.calories ?? 0) * servings;
 
   return (
     <div
       role="dialog"
       aria-modal
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgb(0 0 0 / 0.75)",
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center",
-        zIndex: 200,
-        padding: "1rem",
-      }}
+      className="modal-backdrop"
       onClick={onClose}
     >
-      <div className="card reveal-up" style={{ width: "100%", maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ margin: "0 0 0.5rem" }}>Log to today</h3>
-        <p style={{ margin: "0 0 1rem", fontSize: "0.88rem", color: "var(--text-muted)" }}>
-          How many servings did you eat?
-        </p>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "1rem", marginBottom: "1rem" }}>
-          <button type="button" className="btn btn--secondary" onClick={() => setServings((s) => Math.max(0.25, s - 0.25))}>−</button>
-          <span className="display-num" style={{ fontSize: "2.5rem", minWidth: "3rem", textAlign: "center" }}>
-            {servings}
-          </span>
-          <button type="button" className="btn btn--secondary" onClick={() => setServings((s) => s + 0.25)}>+</button>
-        </div>
-        <p style={{ textAlign: "center", fontSize: "0.85rem", color: "var(--accent)", marginBottom: "1rem" }}>
-          ≈ {Math.round((perServing.calories ?? 0) * servings)} kcal
-        </p>
-        <div className="btn-row">
-          <button type="button" className="btn btn--ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn--primary" style={{ flex: 1 }} onClick={confirm}>Log meal</button>
-        </div>
+      <div className={`card reveal-up modal-sheet ${success ? "modal-sheet--success" : ""}`} onClick={(e) => e.stopPropagation()}>
+        {success ? (
+          <div className="log-success" aria-live="polite">
+            <span className="log-success__check">✓</span>
+            <p className="log-success__text">Logged to today</p>
+          </div>
+        ) : (
+          <>
+            <h3 style={{ margin: "0 0 0.5rem" }}>Log to today</h3>
+            <p style={{ margin: "0 0 1rem", fontSize: "0.88rem", color: "var(--text-muted)" }}>
+              How many servings did you eat?
+            </p>
+            <div className="portion-stepper">
+              <button
+                type="button"
+                className="btn btn--secondary portion-stepper__btn"
+                onClick={() => setServings((s) => Math.max(0.25, s - 0.25))}
+              >
+                −
+              </button>
+              <span className="display-num portion-stepper__val">
+                <AnimatedNumber value={servings} duration={150} decimals={servings % 1 === 0 ? 0 : 2} />
+              </span>
+              <button
+                type="button"
+                className="btn btn--secondary portion-stepper__btn"
+                onClick={() => setServings((s) => s + 0.25)}
+              >
+                +
+              </button>
+            </div>
+            <p style={{ textAlign: "center", fontSize: "0.85rem", color: "var(--accent)", marginBottom: "1rem" }}>
+              ≈ <AnimatedNumber value={estKcal} duration={150} suffix=" kcal" />
+            </p>
+            {error ? <p className="alert alert--error" style={{ marginBottom: "0.75rem" }}>{error}</p> : null}
+            <div className="btn-row">
+              <button type="button" className="btn btn--ghost" style={{ flex: 1 }} onClick={onClose} disabled={saving}>
+                Cancel
+              </button>
+              <button type="button" className="btn btn--primary" style={{ flex: 1 }} onClick={() => void confirm()} disabled={saving}>
+                {saving ? "Saving…" : "Log meal"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

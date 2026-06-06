@@ -1,7 +1,13 @@
 """Personalized nutrition insights, allergy scanning, and ingredient substitution suggestions.
 
-Targets use the Mifflin-St Jeor BMR + activity multiplier (TDEE), then adjust for the user's goal.
-Substitutions are rule-based (no API needed) and filtered by the user's goal + allergies.
+Daily targets follow published guidance:
+- BMI: WHO classification (kg/m²)
+- BMR: Mifflin–St Jeor (1990)
+- TDEE: BMR × physical-activity level (DRI / NIH PAL factors)
+- Weight change: NIH ~500–1000 kcal/day deficit or modest surplus, scaled by BMI
+- Minimum intake: NIH floors (1,200 kcal women, 1,500 kcal men)
+- Macros: USDA Acceptable Macronutrient Distribution Ranges (AMDR)
+
 These are general wellness estimates, not medical advice.
 """
 
@@ -18,6 +24,7 @@ from app.schemas import (
     Substitution,
 )
 
+# Physical activity level multipliers (DRI / NIH consensus).
 _ACTIVITY_FACTOR = {
     "sedentary": 1.2,
     "light": 1.375,
@@ -25,34 +32,128 @@ _ACTIVITY_FACTOR = {
     "active": 1.725,
     "very_active": 1.9,
 }
-# Protein g per kg bodyweight by goal.
-_PROTEIN_PER_KG = {"lose": 2.0, "maintain": 1.6, "gain": 1.8}
-_CALORIE_DELTA = {"lose": -500, "maintain": 0, "gain": 350}
+
+# NIH minimum daily calories when reducing intake.
+_MIN_CALORIES = {"female": 1200, "male": 1500, "other": 1350}
+
+# USDA AMDR midpoints used for fat % of calories by goal.
+_FAT_PCT = {"lose": 0.25, "maintain": 0.30, "gain": 0.25}
+
+# Minimum carbohydrate intake (IOM RDA ~130 g/day for brain glucose).
+_MIN_CARBS_G = 130
+
+
+def compute_bmi(weight_kg: float, height_cm: float) -> float:
+    height_m = height_cm / 100
+    if height_m <= 0:
+        return 0.0
+    return weight_kg / (height_m * height_m)
+
+
+def bmi_category(bmi: float) -> str:
+    if bmi < 18.5:
+        return "underweight"
+    if bmi < 25:
+        return "normal"
+    if bmi < 30:
+        return "overweight"
+    return "obese"
+
+
+_BMI_LABEL = {
+    "underweight": "underweight (BMI < 18.5)",
+    "normal": "healthy weight (BMI 18.5–24.9)",
+    "overweight": "overweight (BMI 25–29.9)",
+    "obese": "obese (BMI ≥ 30)",
+}
+
+
+def _mifflin_st_jeor_bmr(weight_kg: float, height_cm: float, age: int, sex: str) -> float:
+    base = 10 * weight_kg + 6.25 * height_cm - 5 * age
+    if sex == "male":
+        return base + 5
+    if sex == "female":
+        return base - 161
+    return base - 78  # average of male (+5) and female (−161) constants
+
+
+def _calorie_delta(goal: str, bmi_cat: str, bmi: float) -> tuple[int, str]:
+    if goal == "maintain":
+        return 0, "maintenance calories (no deficit or surplus)"
+
+    if goal == "lose":
+        if bmi_cat == "underweight":
+            return 0, "maintenance only — BMI is underweight (WHO); weight loss is not recommended"
+        if bmi_cat in ("normal", "overweight"):
+            return -500, "a ~500 kcal/day deficit (~1 lb/week, NIH)"
+        if bmi >= 35:
+            return -1000, "a ~1000 kcal/day deficit (BMI ≥ 35, upper NIH range, capped at safe minimum)"
+        return -750, "a ~750 kcal/day deficit (BMI ≥ 30, NIH range 500–1000 kcal/day)"
+
+    if bmi_cat == "underweight":
+        return 500, "a ~500 kcal/day surplus for gradual healthy gain (underweight BMI)"
+    if bmi_cat == "normal":
+        return 350, "a ~350 kcal/day surplus for lean gain"
+    return 250, "a modest ~250 kcal/day surplus (BMI already elevated)"
+
+
+def _protein_g_per_kg(goal: str, bmi_cat: str) -> float:
+    """Protein g/kg — above IOM RDA (0.8), higher when cutting or BMI is elevated."""
+    if goal == "lose":
+        return 2.0 if bmi_cat in ("overweight", "obese") else 1.6
+    if goal == "gain":
+        return 1.8
+    return 1.0  # maintain — modestly above RDA
+
+
+def _minimum_calories(sex: str) -> int:
+    return _MIN_CALORIES.get(sex, _MIN_CALORIES["other"])
+
+
+def _macro_split(target_cal: float, weight_kg: float, goal: str, bmi_cat: str) -> tuple[float, float, float]:
+    """Return protein_g, fat_g, carbs_g using USDA AMDR-aligned splits."""
+    protein_g = min(
+        _protein_g_per_kg(goal, bmi_cat) * weight_kg,
+        (target_cal * 0.35) / 4,  # AMDR protein ceiling (35% of kcal)
+    )
+    min_fat_g = (target_cal * 0.20) / 9
+    fat_g = max((target_cal * _FAT_PCT.get(goal, 0.30)) / 9, min_fat_g)
+    carbs_g = max((target_cal - protein_g * 4 - fat_g * 9) / 4, 0)
+
+    # IOM RDA: 130 g carbohydrate/day when the calorie budget allows.
+    if carbs_g < _MIN_CARBS_G:
+        carbs_try = _MIN_CARBS_G
+        fat_try = max((target_cal - protein_g * 4 - carbs_try * 4) / 9, min_fat_g)
+        if protein_g * 4 + carbs_try * 4 + fat_try * 9 <= target_cal * 1.02:
+            carbs_g, fat_g = carbs_try, fat_try
+        else:
+            carbs_g = max((target_cal - protein_g * 4 - min_fat_g * 9) / 4, 0)
+            fat_g = min_fat_g
+
+    return protein_g, fat_g, carbs_g
 
 
 def compute_targets(p: ProfileBase) -> DailyTargets | None:
     if p.weight_kg is None or p.height_cm is None or p.age is None:
         return None
-    s = (p.sex or "other").lower()
-    base = 10 * p.weight_kg + 6.25 * p.height_cm - 5 * p.age
-    if s == "male":
-        bmr = base + 5
-    elif s == "female":
-        bmr = base - 161
-    else:
-        bmr = base - 78  # average of +5 and -161
+
+    sex = (p.sex or "other").lower()
+    bmi = compute_bmi(p.weight_kg, p.height_cm)
+    cat = bmi_category(bmi)
+
+    bmr = _mifflin_st_jeor_bmr(p.weight_kg, p.height_cm, p.age, sex)
     factor = _ACTIVITY_FACTOR.get(p.activity_level or "", 1.2)
     tdee = bmr * factor
     goal = p.goal or "maintain"
-    target_cal = tdee + _CALORIE_DELTA.get(goal, 0)
+    delta, delta_note = _calorie_delta(goal, cat, bmi)
+    target_cal = tdee + delta
 
-    protein_g = _PROTEIN_PER_KG.get(goal, 1.6) * p.weight_kg
-    fat_g = (target_cal * 0.27) / 9  # ~27% of calories from fat
-    carbs_g = max((target_cal - protein_g * 4 - fat_g * 9) / 4, 0)
+    floor = _minimum_calories(sex)
+    if target_cal < floor:
+        target_cal = float(floor)
 
-    goal_word = {"lose": "a ~500 kcal deficit", "gain": "a ~350 kcal surplus", "maintain": "maintenance"}.get(
-        goal, "maintenance"
-    )
+    protein_g, fat_g, carbs_g = _macro_split(target_cal, p.weight_kg, goal, cat)
+
     return DailyTargets(
         bmr=round(bmr),
         tdee=round(tdee),
@@ -60,7 +161,14 @@ def compute_targets(p: ProfileBase) -> DailyTargets | None:
         protein_g=round(protein_g),
         carbs_g=round(carbs_g),
         fat_g=round(fat_g),
-        basis=f"Mifflin-St Jeor BMR × {factor} activity, adjusted for {goal_word}.",
+        bmi=round(bmi, 1),
+        bmi_category=cat,
+        basis=(
+            f"WHO BMI {round(bmi, 1)} ({_BMI_LABEL[cat]}). "
+            f"Mifflin–St Jeor BMR × {factor} activity (TDEE {round(tdee)} kcal), "
+            f"adjusted for {delta_note}. "
+            f"Macros within USDA AMDR; minimum intake {floor} kcal (NIH)."
+        ),
     )
 
 

@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 venv/
 *.db
+backend/data/
 .env
 # yt-dlp / YouTube cookie exports (sensitive; never commit)
 backend/cookies/
