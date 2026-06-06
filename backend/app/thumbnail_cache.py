@@ -8,12 +8,13 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from app.config import BACKEND_DIR
+from app.config import DATA_DIR
 from app.thumbnail import pick_best_thumbnail
 
 _log = logging.getLogger(__name__)
 
-THUMB_DIR = BACKEND_DIR / "data" / "thumbnails"
+THUMB_DIR = DATA_DIR / "thumbnails"
+THUMB_DIR.mkdir(parents=True, exist_ok=True)
 _UA = "Mozilla/5.0 (compatible; RecipeAI/1.0)"
 
 

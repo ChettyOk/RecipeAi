@@ -1,10 +1,9 @@
-from pathlib import Path
-
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{BASE_DIR / 'recipes.db'}"
+from app.config import DATA_DIR
+
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{DATA_DIR / 'recipes.db'}"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,

@@ -1,0 +1,35 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Deploy:
+#   1. Push this repo to GitHub
+#   2. Render Dashboard → New → Blueprint → connect repo
+#   3. Set GEMINI_API_KEY (required) and USDA_API_KEY (optional) when prompted
+#
+# Single Docker image: FastAPI API + React PWA on the same origin.
+# SQLite + thumbnails persist on the attached disk at /data.
+
+services:
+  - type: web
+    name: recipeai
+    runtime: docker
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: STATIC_DIR
+        value: /app/static
+      # Render injects PORT (default 10000). The Dockerfile CMD reads $PORT at runtime.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: USDA_API_KEY
+        sync: false
+      - key: ENABLE_MEDIA_PIPELINE
+        value: "false"
+      - key: ENABLE_NUTRITION
+        value: "true"
+    disk:
+      name: recipeai-data
+      mountPath: /data
+      sizeGB: 1

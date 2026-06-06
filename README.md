@@ -158,9 +158,23 @@ Calories and macros are computed automatically on import (no USDA key required).
 
 The UI shows **total recipe calories** (whole batch), **per serving**, and **your portion** (servings eaten adjuster). `POST /nutrition` accepts optional `context_text` (video caption) for better caption parsing.
 
+## Deploy to production
+
+**Quick path:** Docker Compose locally, then [Render](https://render.com) via `render.yaml`.
+
+```bash
+# Local production test (API + PWA on one port)
+docker compose up --build
+# → http://localhost:8000
+```
+
+Full steps (Render, Fly, VPS, env vars, troubleshooting): **[DEPLOY.md](./DEPLOY.md)**
+
+The Docker image builds the React app, copies it into `backend/static`, and serves everything from FastAPI on one origin (PWA install + share target work over HTTPS).
+
 ## Production notes
 
-- **Database:** SQLite is for dev. For multiple users, switch `SQLALCHEMY_DATABASE_URL` to **PostgreSQL** and add Alembic migrations (the current `ensure_schema()` is a lightweight SQLite-only `ADD COLUMN` helper).
+- **Database:** SQLite with `DATA_DIR` on a persistent volume (Docker/Render disk). For multiple users at scale, switch to **PostgreSQL** and add Alembic migrations.
 - **Auth:** the MVP has no login. Add a `users` table + `user_id` on recipes and validate a session cookie / `Authorization: Bearer` JWT on every mutating route (Firebase Auth or Supabase are easy options). Never trust the client to decide row ownership.
 - **Legal:** TikTok’s ToS restricts scraping — for a commercial app use the official API or get permission. You’re extracting *facts* (ingredients/steps), which generally aren’t copyrightable in the US, but a creator’s specific expression may be. If you store user data you need a privacy policy (GDPR/CCPA) and clear data-collection disclosures for the App/Play stores.
 

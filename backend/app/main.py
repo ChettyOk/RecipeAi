@@ -45,6 +45,7 @@ from app.thumbnail_cache import (
     get_or_cache_thumbnail,
     resolve_remote_thumbnail_url,
 )
+from app.spa import mount_spa
 from app.video_context import fetch_video_context
 from app.video_urls import normalize_video_url
 
@@ -374,3 +375,7 @@ def delete_recipe(recipe_id: int, db: Annotated[Session, Depends(get_db)]) -> No
     delete_thumbnail(recipe_id)
     db.delete(recipe)
     db.commit()
+
+
+# Production: serve Vite build from backend/static (see Dockerfile).
+mount_spa(app, config.STATIC_DIR)

@@ -1,0 +1,15 @@
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/node_modules
+frontend/dist
+backend/recipes.db
+backend/data
+backend/cookies
+.git
+.cursor
+*.md
+!DEPLOY.md
+.env
+backend/.env
+**/.DS_Store

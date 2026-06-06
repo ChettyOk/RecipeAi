@@ -11,6 +11,15 @@ load_dotenv(_backend_dir / ".env", override=True)
 
 BACKEND_DIR = _backend_dir
 
+_data_default = _backend_dir / "data"
+DATA_DIR = Path(os.getenv("DATA_DIR", str(_data_default))).expanduser()
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+_static_default = _backend_dir / "static"
+STATIC_DIR = Path(os.getenv("STATIC_DIR", str(_static_default))).expanduser()
+
+PORT = int(os.getenv("PORT", "8000") or "8000")
+
 
 def _clean_secret(value: str) -> str:
     """Strip BOM, quotes, and accidental newlines from .env secrets (common .env editor issues)."""

@@ -144,7 +144,11 @@ export type RecipeInsights = {
   substitutions: Substitution[];
 };
 
-export const API_BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
+/** Empty string = same origin (production Docker deploy). Dev defaults to local API. */
+export const API_BASE =
+  import.meta.env.VITE_API_URL !== undefined
+    ? import.meta.env.VITE_API_URL
+    : "http://127.0.0.1:8000";
 const base = API_BASE;
 
 export function recipeThumbnailUrl(recipeId: number): string {
