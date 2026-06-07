@@ -75,6 +75,7 @@ export function HomePage() {
   return (
     <div className="page">
       <header style={{ marginBottom: "1.25rem" }}>
+        <img className="brand-logo brand-logo--home" src="/macroreel-icon.svg" alt="MacroReel" />
         <h1 className="page-title">Today</h1>
         <p className="page-sub" style={{ margin: 0 }}>What should you eat?</p>
       </header>
@@ -124,7 +125,7 @@ export function HomePage() {
         <RecipeGridSkeleton count={4} />
       ) : filtered.length === 0 ? (
         <section className="card" style={{ textAlign: "center", padding: "2rem 1rem" }}>
-          <p style={{ margin: "0 0 1rem", color: "var(--text-muted)" }}>Import a TikTok or YouTube cooking video to get started.</p>
+          <p style={{ margin: "0 0 1rem", color: "var(--text-muted)" }}>Import a TikTok, Instagram, or YouTube cooking video to get started.</p>
           <div className="btn-row" style={{ justifyContent: "center" }}>
             <button type="button" className="btn btn--primary" onClick={() => navigate("/import")}>
               Import video

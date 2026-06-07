@@ -21,7 +21,7 @@ export default function App() {
   useEffect(() => {
     if (redirectedRef.current) return;
     const params = new URLSearchParams(location.search);
-    const shared = params.get("url") || params.get("text") || "";
+    const shared = [params.get("url"), params.get("text"), params.get("title")].filter(Boolean).join(" ");
     const videoUrl = extractVideoUrlFromText(shared);
     if (videoUrl && (location.pathname === "/" || location.pathname === "/home")) {
       redirectedRef.current = true;
@@ -31,7 +31,8 @@ export default function App() {
 
   const fullBleed = location.pathname.startsWith("/onboarding");
   const hideNav = location.pathname.startsWith("/onboarding");
-  const showCartButton = !hideNav && !location.pathname.startsWith("/profile");
+  const showCartButton =
+    !hideNav && !location.pathname.startsWith("/profile") && !location.pathname.startsWith("/cart");
 
   return (
     <FavoritesProvider>

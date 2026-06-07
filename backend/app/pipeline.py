@@ -60,7 +60,7 @@ def _run_media_stage(url: str, result: PipelineResult) -> tuple[str, str]:
     audio_transcript = ""
     onscreen_text = ""
 
-    with tempfile.TemporaryDirectory(prefix="recipeai_") as tmp:
+    with tempfile.TemporaryDirectory(prefix="macroreel_") as tmp:
         workdir = Path(tmp)
         try:
             video_path = media.download_video(url, workdir)

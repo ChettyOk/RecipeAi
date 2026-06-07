@@ -18,15 +18,17 @@ export function resolveBodyStats(stats: {
   };
 }
 
-const UNITS_KEY = "recipeai-body-units";
+const UNITS_KEY = "macroreel-body-units";
+const OLD_UNITS_KEY = "recipeai-body-units";
 
 export function getPreferredUnits(): UnitSystem {
-  const v = localStorage.getItem(UNITS_KEY);
+  const v = localStorage.getItem(UNITS_KEY) ?? localStorage.getItem(OLD_UNITS_KEY);
   return v === "imperial" ? "imperial" : "metric";
 }
 
 export function setPreferredUnits(u: UnitSystem): void {
   localStorage.setItem(UNITS_KEY, u);
+  localStorage.removeItem(OLD_UNITS_KEY);
 }
 
 export function cmToFeetInches(cm: number): { ft: number; inches: number } {

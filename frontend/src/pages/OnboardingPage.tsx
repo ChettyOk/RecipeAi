@@ -89,6 +89,7 @@ export function OnboardingPage() {
 
   return (
     <div className="onboarding">
+      <img className="brand-logo brand-logo--onboarding" src="/macroreel-icon.svg" alt="MacroReel" />
       <p className="page-sub" style={{ margin: 0 }}>
         Step {step + 1} of 3
       </p>

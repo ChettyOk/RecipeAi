@@ -1,7 +1,9 @@
 import type { Nutrition } from "../api";
 
-const ONBOARDING_KEY = "recipeai-onboarding-done";
-const DAILY_LOG_KEY = "recipeai-daily-log";
+const ONBOARDING_KEY = "macroreel-onboarding-done";
+const OLD_ONBOARDING_KEY = "recipeai-onboarding-done";
+const DAILY_LOG_KEY = "macroreel-daily-log";
+const OLD_DAILY_LOG_KEY = "recipeai-daily-log";
 
 export type DailyLogEntry = {
   recipeId: number;
@@ -21,16 +23,17 @@ function todayKey(): string {
 }
 
 export function isOnboardingDone(): boolean {
-  return localStorage.getItem(ONBOARDING_KEY) === "1";
+  return localStorage.getItem(ONBOARDING_KEY) === "1" || localStorage.getItem(OLD_ONBOARDING_KEY) === "1";
 }
 
 export function markOnboardingDone(): void {
   localStorage.setItem(ONBOARDING_KEY, "1");
+  localStorage.removeItem(OLD_ONBOARDING_KEY);
 }
 
 export function getDailyLog(): DailyLog {
   try {
-    const raw = localStorage.getItem(DAILY_LOG_KEY);
+    const raw = localStorage.getItem(DAILY_LOG_KEY) ?? localStorage.getItem(OLD_DAILY_LOG_KEY);
     if (!raw) return { date: todayKey(), entries: [] };
     const log = JSON.parse(raw) as DailyLog;
     if (log.date !== todayKey()) return { date: todayKey(), entries: [] };
@@ -42,6 +45,7 @@ export function getDailyLog(): DailyLog {
 
 export function saveDailyLog(log: DailyLog): void {
   localStorage.setItem(DAILY_LOG_KEY, JSON.stringify(log));
+  localStorage.removeItem(OLD_DAILY_LOG_KEY);
 }
 
 export function logMealToday(entry: Omit<DailyLogEntry, "loggedAt">): void {

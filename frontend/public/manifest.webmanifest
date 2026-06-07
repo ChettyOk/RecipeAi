@@ -1,7 +1,7 @@
 {
-  "name": "RecipeAI",
-  "short_name": "RecipeAI",
-  "description": "Turn TikTok and YouTube cooking videos into structured recipes with macros.",
+  "name": "MacroReel",
+  "short_name": "MacroReel",
+  "description": "Turn TikTok, Instagram, and YouTube cooking videos into structured recipes with macros.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -9,14 +9,14 @@
   "theme_color": "#0d0d0d",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "/macroreel-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ],
   "share_target": {
-    "action": "/",
+    "action": "/import",
     "method": "GET",
     "enctype": "application/x-www-form-urlencoded",
     "params": {

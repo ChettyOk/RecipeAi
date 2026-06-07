@@ -21,17 +21,15 @@ export function CartHeaderButton() {
   const { pathname } = useLocation();
   const { uncheckedCount, entries } = useShoppingCart();
 
-  if (pathname.startsWith("/profile") || pathname.startsWith("/onboarding")) {
+  if (pathname.startsWith("/profile") || pathname.startsWith("/onboarding") || pathname.startsWith("/cart")) {
     return null;
   }
 
   const badge = uncheckedCount > 0 ? uncheckedCount : entries.length > 0 ? entries.length : 0;
-  const onCart = pathname.startsWith("/cart");
-
   return (
     <NavLink
       to="/cart"
-      className={`cart-header-btn ${onCart ? "cart-header-btn--active" : ""}`}
+      className="cart-header-btn"
       aria-label={
         badge > 0
           ? `Shopping list, ${badge} item${badge === 1 ? "" : "s"}`

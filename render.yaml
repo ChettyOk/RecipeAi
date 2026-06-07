@@ -10,7 +10,7 @@
 
 services:
   - type: web
-    name: recipeai
+    name: macroreel
     runtime: docker
     plan: starter
     autoDeploy: true
@@ -30,6 +30,6 @@ services:
       - key: ENABLE_NUTRITION
         value: "true"
     disk:
-      name: recipeai-data
+      name: macroreel-data
       mountPath: /data
       sizeGB: 1

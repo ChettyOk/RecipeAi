@@ -107,6 +107,23 @@ textarea::placeholder {
   max-width: 100%;
 }
 
+.brand-logo {
+  display: block;
+  height: auto;
+  object-fit: contain;
+  border-radius: 24px;
+}
+
+.brand-logo--home {
+  width: 76px;
+  margin: 0 0 0.85rem;
+}
+
+.brand-logo--onboarding {
+  width: 108px;
+  margin: 0 auto 1.25rem;
+}
+
 .page-header {
   margin-bottom: 0.85rem;
 }

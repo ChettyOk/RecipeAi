@@ -15,7 +15,7 @@ _log = logging.getLogger(__name__)
 
 THUMB_DIR = DATA_DIR / "thumbnails"
 THUMB_DIR.mkdir(parents=True, exist_ok=True)
-_UA = "Mozilla/5.0 (compatible; RecipeAI/1.0)"
+_UA = "Mozilla/5.0 (compatible; MacroReel/1.0)"
 
 
 def _youtube_id_from_url(url: str) -> str | None:

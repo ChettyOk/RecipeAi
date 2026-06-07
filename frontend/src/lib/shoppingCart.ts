@@ -1,6 +1,7 @@
 import { formatQty, parseIngredientLine, type ParsedIngredient } from "./parseIngredient";
 
-const STORAGE_KEY = "recipeai-shopping-cart";
+const STORAGE_KEY = "macroreel-shopping-cart";
+const OLD_STORAGE_KEY = "recipeai-shopping-cart";
 
 export type CartRecipeEntry = {
   entryId: string;
@@ -30,7 +31,7 @@ export function emptyCart(): ShoppingCartState {
 
 export function loadCart(): ShoppingCartState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(OLD_STORAGE_KEY);
     if (!raw) return emptyCart();
     const parsed = JSON.parse(raw) as ShoppingCartState;
     if (!parsed || !Array.isArray(parsed.entries)) return emptyCart();
@@ -45,6 +46,7 @@ export function loadCart(): ShoppingCartState {
 
 export function saveCart(state: ShoppingCartState): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.removeItem(OLD_STORAGE_KEY);
 }
 
 export function mergeIngredients(entries: CartRecipeEntry[]): MergedIngredient[] {

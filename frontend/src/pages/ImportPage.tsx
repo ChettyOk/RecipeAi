@@ -78,7 +78,7 @@ export function ImportPage() {
 
   useEffect(() => {
     if (autoRanRef.current) return;
-    const shared = searchParams.get("url") || searchParams.get("text") || "";
+    const shared = [searchParams.get("url"), searchParams.get("text"), searchParams.get("title")].filter(Boolean).join(" ");
     const url = extractVideoUrlFromText(shared);
     if (!url) return;
     autoRanRef.current = true;
@@ -135,7 +135,7 @@ export function ImportPage() {
     <div className="page reveal-up">
       <h1 className="page-title">Import video</h1>
       <p className="page-sub">
-        Paste a TikTok, YouTube, or YouTube Shorts link — or add a recipe by hand.
+        Paste a TikTok, Instagram, YouTube, or YouTube Shorts link — or add a recipe by hand.
       </p>
 
       <div className="platform-pills" aria-label="Supported platforms">
@@ -173,7 +173,7 @@ export function ImportPage() {
             className="input"
             type="url"
             inputMode="url"
-            placeholder="TikTok, youtube.com/watch, youtu.be, or /shorts/…"
+            placeholder="TikTok, Instagram, youtube.com/watch, youtu.be, or /shorts/..."
             value={videoUrl}
             onChange={(e) => setVideoUrl(e.target.value)}
             autoFocus

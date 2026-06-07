@@ -2,7 +2,7 @@
 # App: http://localhost:8000
 
 services:
-  recipeai:
+  macroreel:
     build: .
     ports:
       - "8000:8000"
@@ -12,8 +12,8 @@ services:
       DATA_DIR: /data
       PORT: "8000"
     volumes:
-      - recipeai-data:/data
+      - macroreel-data:/data
     restart: unless-stopped
 
 volumes:
-  recipeai-data:
+  macroreel-data:

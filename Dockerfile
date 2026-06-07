@@ -1,6 +1,6 @@
-# RecipeAI — single container: FastAPI API + React PWA static files
-# Build: docker build -t recipeai .
-# Run:   docker run -p 8000:8000 -e GEMINI_API_KEY=... -v recipeai-data:/data recipeai
+# MacroReel — single container: FastAPI API + React PWA static files
+# Build: docker build -t macroreel .
+# Run:   docker run -p 8000:8000 -e GEMINI_API_KEY=... -v macroreel-data:/data macroreel
 
 FROM node:22-alpine AS frontend
 WORKDIR /app/frontend

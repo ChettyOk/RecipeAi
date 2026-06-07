@@ -1,4 +1,4 @@
-# RecipeAI
+# MacroReel
 
 Turn a cooking video into a structured, macro-aware recipe. React (Vite) **PWA** + **FastAPI** (Python) API + **SQLite**.
 
@@ -10,7 +10,7 @@ Everything stays on the **Google AI free tier** (no OpenAI Whisper / GPT-4o need
 
 | Spec layer | This app |
 |---|---|
-| Share to app | **PWA Web Share Target** (`manifest.webmanifest`) + `?url=`/`?text=` prefill & auto-run. Native iOS Share Extension / Android `ACTION_SEND` are documented as next steps below. |
+| Share to app | **PWA Web Share Target** (`manifest.webmanifest`) + `?url=`/`?text=`/`?title=` prefill & auto-run. Native iOS Share Extension / Android `ACTION_SEND` are documented as next steps below. |
 | Download + audio + frames | `app/media.py` (`yt-dlp` + `ffmpeg`), gated by `ENABLE_MEDIA_PIPELINE`. |
 | Transcription | `app/gemini_media.py` → Gemini audio (in place of Whisper). |
 | Vision / OCR | `app/gemini_media.py` → Gemini reads sampled frames. |
@@ -117,7 +117,7 @@ If Method B fails (permissions, locked DB, wrong profile), use **Method A** inst
 
 ### Troubleshooting
 
-**Environment file location:** The backend loads **`RecipeAI/.env`** (next to this README) first, then **`backend/.env`**, so **values in `backend/.env` override the root file** for the same variable. Put secrets in **`backend/.env`** for predictable behavior.
+**Environment file location:** The backend loads the project root **`.env`** (next to this README) first, then **`backend/.env`**, so **values in `backend/.env` override the root file** for the same variable. Put secrets in **`backend/.env`** for predictable behavior.
 
 **Gemini API key / invalid key:** Put **`GEMINI_API_KEY=...`** on one line in `backend/.env` ([Google AI Studio](https://aistudio.google.com/app/apikey)). **`GOOGLE_API_KEY`** is accepted as an alias. Restart uvicorn after edits.
 
@@ -127,9 +127,9 @@ If Method B fails (permissions, locked DB, wrong profile), use **Method A** inst
 
 ## Share to app (PWA) & native next steps
 
-- **Web / Android PWA:** the frontend ships a `manifest.webmanifest` with a **Web Share Target**. Install the app (browser “Install” / “Add to Home screen”), then **Share** a TikTok/YouTube link and pick **RecipeAI**. The URL arrives as `?url=`/`?text=`, prefills the import box, and auto-runs extraction. The service worker (`public/sw.js`) provides installability. *(Install requires HTTPS in production; `localhost` is treated as secure for dev.)*
-- **Deep link:** opening `…/?url=<video-url>` (optionally `&autorun=0`) prefills/triggers an import — handy for testing or other integrations.
-- **Native iOS/Android (future):** wrap the web app or build a thin native shell. iOS = an **App Extension (Share Extension)** target that forwards the URL; Android = an `intent-filter` with `ACTION_SEND` (`text/plain`). Both just need to open `…/?url=<shared-url>`.
+- **Web / Android PWA:** the frontend ships a `manifest.webmanifest` with a **Web Share Target**. Install MacroReel (browser “Install” / “Add to Home screen”), then **Share** a TikTok, Instagram, or YouTube link and pick **MacroReel**. The URL arrives as `?url=`/`?text=`/`?title=`, prefills the import box, and auto-runs extraction. The service worker (`public/sw.js`) provides installability. *(Install requires HTTPS in production; `localhost` is treated as secure for dev.)*
+- **Deep link:** opening `…/import?url=<video-url>` (optionally `&autorun=0`) prefills/triggers an import — handy for testing or other integrations.
+- **Native iOS/Android (future):** wrap the web app or build a thin native shell. iOS = an **App Extension (Share Extension)** target that forwards the URL; Android = an `intent-filter` with `ACTION_SEND` (`text/plain`). Both just need to open `…/import?url=<shared-url>`.
 
 ## Pages & personalization
 

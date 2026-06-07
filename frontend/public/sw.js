@@ -1,7 +1,7 @@
 // Minimal service worker: required for PWA installability + share target.
 // Network-first navigation so shared URLs (?url=...) always reach the live app shell.
-const CACHE = "recipeai-v1";
-const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg"];
+const CACHE = "macroreel-v1";
+const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/macroreel-icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

@@ -5,7 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 _backend_dir = Path(__file__).resolve().parent.parent
-# Load RecipeAI/.env first, then backend/.env (backend wins for duplicate keys).
+# Load the project root .env first, then backend/.env (backend wins for duplicate keys).
 load_dotenv(_backend_dir.parent / ".env", override=True)
 load_dotenv(_backend_dir / ".env", override=True)
 

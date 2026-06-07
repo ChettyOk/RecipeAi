@@ -49,7 +49,7 @@ export function CookbookPage() {
       <section className="card" style={{ textAlign: "center", padding: "2.5rem 1.25rem" }}>
         <p style={{ fontSize: "2.5rem", margin: "0 0 0.5rem" }}>📓</p>
         <h2 className="page-title" style={{ fontSize: "1.35rem" }}>Cookbook is empty</h2>
-        <p className="page-sub">Save recipes from TikTok or YouTube to cook them later.</p>
+        <p className="page-sub">Save recipes from TikTok, Instagram, or YouTube to cook them later.</p>
         <div className="btn-row" style={{ justifyContent: "center" }}>
           <button type="button" className="btn btn--primary" onClick={() => navigate("/import")}>
             Import a video

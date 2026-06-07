@@ -1,6 +1,6 @@
-# Deploy RecipeAI
+# Deploy MacroReel
 
-RecipeAI ships as **one Docker image**: FastAPI serves the API and the built React PWA from the same origin (HTTPS-ready PWA + share target).
+MacroReel ships as **one Docker image**: FastAPI serves the API and the built React PWA from the same origin (HTTPS-ready PWA + share target).
 
 ## Prerequisites
 
@@ -20,17 +20,17 @@ Open **http://localhost:8000**
 
 - API docs: http://localhost:8000/docs
 - Health: http://localhost:8000/health
-- Data persists in Docker volume `recipeai-data`
+- Data persists in Docker volume `macroreel-data`
 
 ### Manual docker commands
 
 ```bash
-docker build -t recipeai .
+docker build -t macroreel .
 docker run --rm -p 8000:8000 \
   -e GEMINI_API_KEY=your_key_here \
   -e USDA_API_KEY=optional_usda_key \
-  -v recipeai-data:/data \
-  recipeai
+  -v macroreel-data:/data \
+  macroreel
 ```
 
 ## 2. Deploy on Render (recommended)
@@ -41,7 +41,7 @@ docker run --rm -p 8000:8000 \
 4. When prompted, set secrets:
    - `GEMINI_API_KEY` (required)
    - `USDA_API_KEY` (optional)
-5. Deploy. Render assigns a URL like `https://recipeai-xxxx.onrender.com`.
+5. Deploy. Render assigns a URL like `https://macroreel-xxxx.onrender.com`.
 6. The **1 GB disk** at `/data` keeps SQLite + thumbnails across restarts.
 
 **Note:** Free Render plans spin down when idle; first request may be slow. Use a paid plan for always-on.
@@ -49,7 +49,7 @@ docker run --rm -p 8000:8000 \
 ### After deploy
 
 - Install the PWA from your browser (Add to Home Screen).
-- Share a TikTok/YouTube link to RecipeAI (share target uses your deployed origin).
+- Share a TikTok, Instagram, or YouTube link to MacroReel (share target uses your deployed origin).
 - For YouTube bot errors, add `YTDLP_COOKIES_FILE` or upload cookies — see README.
 
 ## 3. Deploy on Fly.io, Railway, or a VPS
@@ -57,7 +57,7 @@ docker run --rm -p 8000:8000 \
 Same image works anywhere Docker runs:
 
 ```bash
-docker build -t recipeai .
+docker build -t macroreel .
 # Push to your registry, then run with:
 #   -e GEMINI_API_KEY=...
 #   -e DATA_DIR=/data
