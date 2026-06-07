@@ -65,7 +65,7 @@ FFPROBE_BIN: str = os.getenv("FFPROBE_BIN", "ffprobe").strip() or "ffprobe"
 # ── Nutrition: USDA FoodData Central (free): https://fdc.nal.usda.gov/api-key-signup.html ──
 USDA_API_KEY: str = _clean_secret(os.getenv("USDA_API_KEY", ""))
 ENABLE_NUTRITION: bool = _flag("ENABLE_NUTRITION", True)
-# AI nutrition estimates are non-deterministic and override video-stated macros — off by default.
+# AI nutrition estimates are non-deterministic and only run when no video-stated macros are found.
 ENABLE_GEMINI_NUTRITION: bool = _flag("ENABLE_GEMINI_NUTRITION", False)
 
 # ── yt-dlp cookies / YouTube hardening (see README) ──
